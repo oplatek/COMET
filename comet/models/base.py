@@ -128,6 +128,16 @@ class CometModel(ptl.LightningModule, metaclass=abc.ABCMeta):
                 dropout=self.hparams.dropout,
                 layer_norm=self.hparams.layer_norm,
             )
+        elif self.hparams.layer.startswith("skiplast_"):
+            skip_last_layers = int(self.hparams.layer[len("skiplast_"):])
+            self.layerwise_attention = LayerwiseAttention(
+                layer_transformation=layer_transformation,
+                num_layers=self.encoder.num_layers,
+                dropout=self.hparams.dropout,
+                layer_norm=self.hparams.layer_norm,
+                skip_last_layers=skip_last_layers,
+            )
+
         else:
             self.layerwise_attention = None
 
