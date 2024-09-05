@@ -30,7 +30,10 @@ For more details run the following command:
 """
 import json
 import logging
+import socket
 import warnings
+
+import wandb
 
 import torch
 from jsonargparse import ActionConfigFile, ArgumentParser, namespace_to_dict
@@ -38,6 +41,7 @@ from pytorch_lightning import seed_everything
 from pytorch_lightning.callbacks import (EarlyStopping, LearningRateMonitor,
                                          ModelCheckpoint)
 from pytorch_lightning.trainer.trainer import Trainer
+from pytorch_lightning.loggers import WandbLogger
 
 from comet.models import (RankingMetric, ReferencelessRegression,
                           RegressionMetric, UnifiedMetric)
@@ -171,11 +175,16 @@ def initialize_model(configs):
 
 
 def train_command() -> None:
+    wandb.init(project="efficient_reranking", job_type='training')
+
     parser = read_arguments()
     cfg = parser.parse_args()
+    wandb.config.update(vars(cfg))
     seed_everything(cfg.seed_everything)
+    wandlogger = WandbLogger()
 
     trainer = initialize_trainer(cfg)
+    trainer.logger = wandlogger
     model = initialize_model(cfg)
     # Related to train/val_dataloaders:
     # 2 workers per gpu is enough! If set to the number of cpus on this machine
@@ -189,4 +198,5 @@ def train_command() -> None:
 
 
 if __name__ == "__main__":
+    print(f"Hostname {socket.gethostname()}")
     train_command()
