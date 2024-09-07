@@ -76,7 +76,7 @@ class LayerwiseAttention(torch.nn.Module):
         self.gamma = Parameter(torch.FloatTensor([1.0]), requires_grad=True)
 
         skip_last_layers_mask = torch.ones(len(self.scalar_parameters))
-        skip_last_layers_mask[-skip_last_layers:] = 0
+        skip_last_layers_mask[:-skip_last_layers] = 0
         self.register_buffer("skip_last_layers_mask", skip_last_layers_mask)
 
         if self.dropout:
@@ -124,11 +124,14 @@ class LayerwiseAttention(torch.nn.Module):
             weights = torch.cat([parameter for parameter in self.scalar_parameters])
             gamma = self.gamma
 
+        # masked weights
+        weights = self.skip_last_layers_mask * weights
+
         if self.training and self.dropout:
             weights = torch.where(
                 self.dropout_mask.uniform_() > self.dropout, weights, self.dropout_fill
             )
-
+        
         normed_weights = self.transform_fn(weights, dim=0)
         normed_weights = torch.split(normed_weights, split_size_or_sections=1)
 
