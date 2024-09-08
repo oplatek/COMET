@@ -120,6 +120,8 @@ class UnifiedMetric(CometModel):
         error_labels: List[str] = ["minor", "major"],
         cross_entropy_weights: Optional[List[float]] = None,
         load_pretrained_weights: bool = True,
+        use_first_layers: Optional[int] = None,  # None means all layers
+        remove_unused_layers_from_encoder: bool = False,
     ) -> None:
         super().__init__(
             nr_frozen_epochs=nr_frozen_epochs,
@@ -139,6 +141,8 @@ class UnifiedMetric(CometModel):
             validation_data=validation_data,
             class_identifier="unified_metric",
             load_pretrained_weights=load_pretrained_weights,
+            use_first_layers=use_first_layers,
+            remove_unused_layers_from_encoder=remove_unused_layers_from_encoder,
         )
         self.save_hyperparameters()
         self.estimator = FeedForward(
