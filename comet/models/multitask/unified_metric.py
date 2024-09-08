@@ -440,11 +440,6 @@ class UnifiedMetric(CometModel):
             Dict[str, torch.Tensor]: Sentence scores and word-level logits (if
                 word_level_training = True)
         """
-        # Assert in init method to use just for XLM-RoBERTa here also
-        # add skip_last_n_layers into init method
-        # adjust self.layers of the 
-        if FEWER_LAYERS:
-            self.encoder.model.encoder.layers
         encoder_out = self.encoder(
             input_ids, attention_mask, token_type_ids=token_type_ids
         )
