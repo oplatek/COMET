@@ -40,7 +40,7 @@ class LayerwiseAttention(torch.nn.Module):
         layer_weights: Optional[List[int]] = None,
         dropout: float = None,
         layer_transformation: str = "softmax",
-        skip_last_layers: int = 0,
+        use_first_layers: Optional[int] = None,
     ) -> None:
         super(LayerwiseAttention, self).__init__()
         self.num_layers = num_layers
@@ -75,9 +75,9 @@ class LayerwiseAttention(torch.nn.Module):
 
         self.gamma = Parameter(torch.FloatTensor([1.0]), requires_grad=True)
 
-        skip_last_layers_mask = torch.ones(len(self.scalar_parameters))
-        skip_last_layers_mask[:-skip_last_layers] = 0
-        self.register_buffer("skip_last_layers_mask", skip_last_layers_mask)
+        use_first_layers_mask = torch.ones(len(self.scalar_parameters))
+        use_first_layers_mask[:use_first_layers] = 0
+        self.register_buffer("use_first_layers_mask", use_first_layers_mask)
 
         if self.dropout:
             dropout_mask = torch.zeros(len(self.scalar_parameters))
@@ -125,7 +125,7 @@ class LayerwiseAttention(torch.nn.Module):
             gamma = self.gamma
 
         # masked weights
-        weights = self.skip_last_layers_mask * weights
+        weights = self.use_first_layers_mask * weights
 
         if self.training and self.dropout:
             weights = torch.where(

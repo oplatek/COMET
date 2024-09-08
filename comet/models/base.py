@@ -31,6 +31,7 @@ import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler, Subset
 
 from comet.encoders import str2encoder
+from comet.encoders.xlmr import XLMREncoder
 from comet.modules import LayerwiseAttention
 
 from .lru_cache import tensor_lru_cache
@@ -113,31 +114,29 @@ class CometModel(ptl.LightningModule, metaclass=abc.ABCMeta):
         validation_data: Optional[List[str]] = None,
         class_identifier: Optional[str] = None,
         load_pretrained_weights: bool = True,
+        use_first_layers: Optional[int] = None,  # None means all layers
+        remove_unused_layers_from_encoder: bool = False,
     ) -> None:
         super().__init__()
         self.save_hyperparameters()
         self.encoder = str2encoder[self.hparams.encoder_model].from_pretrained(
             self.hparams.pretrained_model, load_pretrained_weights
         )
+        assert self.hparams.encoder_model == "XLM-RoBERTa" and isinstance(self.encoder, XLMREncoder), self.hparams.encode_model
+        assert self.hparams.layer == "mix", self.hparams.layer  # we need the LayerwiseAttention to be used
+
 
         self.epoch_nr = 0
         if self.hparams.layer == "mix":
+            if remove_unused_layers_from_encoder:
+                self.encoder.model.encoder.layer = self.encoder.model.encoder.layer[:use_first_layers]  # layer is torch.nn.ModuleList
             self.layerwise_attention = LayerwiseAttention(
                 layer_transformation=layer_transformation,
                 num_layers=self.encoder.num_layers,
                 dropout=self.hparams.dropout,
                 layer_norm=self.hparams.layer_norm,
+                use_first_layers=use_first_layers,
             )
-        elif self.hparams.layer.startswith("skiplast_"):
-            skip_last_layers = int(self.hparams.layer[len("skiplast_"):])
-            self.layerwise_attention = LayerwiseAttention(
-                layer_transformation=layer_transformation,
-                num_layers=self.encoder.num_layers,
-                dropout=self.hparams.dropout,
-                layer_norm=self.hparams.layer_norm,
-                skip_last_layers=skip_last_layers,
-            )
-
         else:
             self.layerwise_attention = None
 
