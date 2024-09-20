@@ -134,6 +134,7 @@ class LayerwiseAttention(torch.nn.Module):
         normed_weights = torch.split(normed_weights, split_size_or_sections=1)
 
         first_layers_mask = torch.split(self.use_first_layers_mask, split_size_or_sections=1)
+        assert len(first_layers_mask) == len(normed_weights), f"{len(first_layers_mask)=} vs {len(normed_weights)=}"
 
         if not self.layer_norm:
             pieces = []
