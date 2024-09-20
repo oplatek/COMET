@@ -41,6 +41,12 @@ from pytorch_lightning import seed_everything
 from pytorch_lightning.callbacks import (EarlyStopping, LearningRateMonitor,
                                          ModelCheckpoint)
 from pytorch_lightning.trainer.trainer import Trainer
+
+# disabling SLURM detection
+# https://github.com/Lightning-AI/pytorch-lightning/issues/6389#issuecomment-1997042135
+from pytorch_lightning.plugins.environments import SLURMEnvironment
+SLURMEnvironment.detect = lambda: False
+
 from pytorch_lightning.loggers import WandbLogger
 
 from comet.models import (RankingMetric, ReferencelessRegression,
