@@ -75,8 +75,9 @@ class LayerwiseAttention(torch.nn.Module):
 
         self.gamma = Parameter(torch.FloatTensor([1.0]), requires_grad=True)
 
-        use_first_layers_mask = torch.ones(len(self.scalar_parameters))
-        use_first_layers_mask[:use_first_layers] = 0
+        use_first_layers_mask = torch.zeros(len(self.scalar_parameters))
+        # default case use_first_layers_mask[:None] = 1.0  fills the buffer with 1.0
+        use_first_layers_mask[:use_first_layers] = 1.0
         self.register_buffer("use_first_layers_mask", use_first_layers_mask)
 
         if self.dropout:
@@ -124,9 +125,6 @@ class LayerwiseAttention(torch.nn.Module):
             weights = torch.cat([parameter for parameter in self.scalar_parameters])
             gamma = self.gamma
 
-        # masked weights
-        weights = self.use_first_layers_mask * weights
-
         if self.training and self.dropout:
             weights = torch.where(
                 self.dropout_mask.uniform_() > self.dropout, weights, self.dropout_fill
@@ -135,10 +133,12 @@ class LayerwiseAttention(torch.nn.Module):
         normed_weights = self.transform_fn(weights, dim=0)
         normed_weights = torch.split(normed_weights, split_size_or_sections=1)
 
+        first_layers_mask = torch.split(self.use_first_layers_mask, split_size_or_sections=1)
+
         if not self.layer_norm:
             pieces = []
-            for weight, tensor in zip(normed_weights, tensors):
-                pieces.append(weight * tensor)
+            for mask, weight, tensor in zip(first_layers_mask, normed_weights, tensors):
+                pieces.append(mask * weight * tensor)
             return gamma * sum(pieces)
 
         else:
@@ -146,6 +146,6 @@ class LayerwiseAttention(torch.nn.Module):
             broadcast_mask = mask_float.unsqueeze(-1)
 
             pieces = []
-            for weight, tensor in zip(normed_weights, tensors):
-                pieces.append(weight * _layer_norm(tensor, broadcast_mask, mask_float))
+            for mask, weight, tensor in zip(first_layers_mask, normed_weights, tensors):
+                pieces.append(mask * weight * _layer_norm(tensor, broadcast_mask, mask_float))
             return gamma * sum(pieces)

@@ -334,7 +334,6 @@ class CometModel(ptl.LightningModule, metaclass=abc.ABCMeta):
         encoder_out = self.encoder(
             input_ids, attention_mask, token_type_ids=token_type_ids
         )
-        __import__('ipdb').set_trace()
         if self.layerwise_attention:
             embeddings = self.layerwise_attention(
                 encoder_out["all_layers"], attention_mask
