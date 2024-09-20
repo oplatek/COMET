@@ -334,6 +334,7 @@ class CometModel(ptl.LightningModule, metaclass=abc.ABCMeta):
         encoder_out = self.encoder(
             input_ids, attention_mask, token_type_ids=token_type_ids
         )
+        __import__('ipdb').set_trace()
         if self.layerwise_attention:
             embeddings = self.layerwise_attention(
                 encoder_out["all_layers"], attention_mask
@@ -508,6 +509,9 @@ class CometModel(ptl.LightningModule, metaclass=abc.ABCMeta):
             )
             self.train_subset = Subset(train_dataset, train_subset)
 
+    def collate_fn_train(self, s):
+        return self.prepare_sample(s, stage="fit")
+
     def train_dataloader(self) -> DataLoader:
         """Method that loads the train dataloader. Can be called every epoch to load a
         different trainset if `reload_dataloaders_every_n_epochs=1` in Lightning
@@ -523,17 +527,22 @@ class CometModel(ptl.LightningModule, metaclass=abc.ABCMeta):
             dataset=train_dataset,
             sampler=RandomSampler(train_dataset),
             batch_size=self.hparams.batch_size,
-            collate_fn=lambda s: self.prepare_sample(s, stage="fit"),
+            collate_fn=self.collate_fn_train,
             num_workers=2 * self.trainer.num_devices if not self.trainer.fast_dev_run else 0,
         )
 
+    def collate_fn_val(self, s):
+        return self.prepare_sample(s, stage="validate")
+
     def val_dataloader(self) -> DataLoader:
         """Function that loads the validation sets."""
+
+
         val_data = [
             DataLoader(
                 dataset=self.train_subset,
                 batch_size=self.hparams.batch_size,
-                collate_fn=lambda s: self.prepare_sample(s, stage="validate"),
+                collate_fn=self.collate_fn_val,
                 num_workers=2 * self.trainer.num_devices if not self.trainer.fast_dev_run else 0,
             )
         ]
@@ -542,8 +551,8 @@ class CometModel(ptl.LightningModule, metaclass=abc.ABCMeta):
                 DataLoader(
                     dataset=validation_set,
                     batch_size=self.hparams.batch_size,
-                    collate_fn=lambda s: self.prepare_sample(s, stage="validate"),
-                    num_workers=2 * self.trainer.num_devices,
+                    collate_fn=self.collate_fn_val,
+                    num_workers=2 * self.trainer.num_devices if not self.trainer.fast_dev_run else 0,
                 )
             )
         return val_data
