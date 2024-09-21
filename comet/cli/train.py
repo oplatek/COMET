@@ -59,6 +59,7 @@ logger = logging.getLogger(__name__)
 
 def read_arguments() -> ArgumentParser:
     parser = ArgumentParser(description="Command for training COMET models.")
+    parser.add_argument("--run_name", default=None, help="wandb run name")
     parser.add_argument(
         "--seed_everything",
         type=int,
@@ -181,13 +182,18 @@ def initialize_model(configs):
 
 
 def train_command() -> None:
-    wandb.init(project="efficient_reranking", job_type='training')
 
     parser = read_arguments()
     cfg = parser.parse_args()
+    wandb.init(project="efficient_reranking", job_type='training', name=cfg.run_name)
     wandb.config.update(vars(cfg))
     seed_everything(cfg.seed_everything)
     wandlogger = WandbLogger()
+
+    # efficient-ranking specific. See run.sh we first save the config to output dir then launch exp
+    outdir = Path(cfg.cfg).parent
+    with open(outdir/ "wandb_config.json", "wt") as w:
+        json.dump(wandb.config, f)
 
     trainer = initialize_trainer(cfg)
     trainer.logger = wandlogger

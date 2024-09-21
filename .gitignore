@@ -1,3 +1,9 @@
+venv
+da
+efficient_pruning
+exp/
+wandb/
+
 *.pkl
 *DS_Store 
 data/

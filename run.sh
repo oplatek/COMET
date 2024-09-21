@@ -7,6 +7,8 @@ TRAINER_CFG="da/configs/trainer.yaml"
 EARLY_STOP_CFG="da/configs/early_stopping.yaml"
 CKPT_CFG="da/configs/model_checkpoint.yaml"
 CKPT="$HOME/.cache/huggingface/hub/models--Unbabel--wmt22-cometkiwi-da/snapshots/b3a8aea5a5fc22db68a554b92b3d96eb6ea75cc9/checkpoints/model.ckpt"
+USE_FIRST_LAYERS="null"   # options are null, -1 for all except last layers 24 effectively the same if there are 25 layers
+EXPERIMENT_ID=""
 
 debug=false
 
@@ -22,18 +24,29 @@ TIMESTAMP="$(date -u +'%Y%m%dT%H%M%S')"
 if [[ -z $SLURM_JOB_ID ]] ; then
   printf "Not a SLURM job" ; exit 1
 fi
-EXPERIMENT_ID="Z_$TIMESTAMP.$SLURM_JOB_ID.$GIT_COMMIT"
+
+if [[ -z "$EXPERIMENT_ID" ]] ; then
+  EXPERIMENT_ID="Z_$TIMESTAMP.$SLURM_JOB_ID.$GIT_COMMIT"
+else
+  printf "\nWARNING: you are setting experiment id to $EXPERIMENT_ID\nMake sure that not multiple jobs are overwriting each other!\n\n"
+fi
 
 
+if [[ SKIP_TRAINING == false ]] ;
 mkdir -p "exp/$EXPERIMENT_ID/"
 
-cat $MAIN_CFG > "exp/$EXPERIMENT_ID/$(basename $MAIN_CFG)"
+sed \
+  -e "s|use_first_layers: null|use_first_layers: ${USE_FIRST_LAYERS}|" \
+  $MAIN_CFG \
+  > "exp/$EXPERIMENT_ID/$(basename $MAIN_CFG)"
 cat $TRAINER_CFG > "exp/$EXPERIMENT_ID/$(basename $TRAINER_CFG)"
 cat $EARLY_STOP_CFG > "exp/$EXPERIMENT_ID/$(basename $EARLY_STOP_CFG)"
 sed \
-  -e "s;dirpath: TODO-dirpath;dirpath: exp/$EXPERIMENT_ID;" \
+  -e "s|dirpath: TODO-dirpath|dirpath: exp/$EXPERIMENT_ID|" \
   $CKPT_CFG \
-    > exp/$EXPERIMENT_ID/$(basename $CKPT_CFG)
+    > "exp/$EXPERIMENT_ID/$(basename $CKPT_CFG)"
+
+printf "Applied changes to config 'exp/$EXPERIMENT_ID/$(basename $CKPT_CFG)'"
 
 # hack https://github.com/Lightning-AI/pytorch-lightning/issues/5225#issuecomment-750032030
 # how to avoid pytorch lightning messing with slurm -requining - AFAIK - PL still messes with SLURM
@@ -45,3 +58,25 @@ $CMD \
   ./comet/cli/train.py \
   --load_from_checkpoint "$CKPT" \
   --cfg "exp/$EXPERIMENT_ID/$(basename $MAIN_CFG)"
+
+# TODO choose the best one
+
+# If you want just one model TODO select just the best one
+models="$(find exp/$EXPERIMENT_ID/ -name '*.ckpt' | head -n9)"
+
+for model in $models : do
+
+  $CMD \
+    ./score_comet.py \
+      -m $model \
+      -o ${model}.out.json
+
+
+  # for human score
+  python3 eval_comet.py -d1 ${model}.out.json -d2 score \
+    | tee ${model}.out.json.human.kendalltau
+  # for cometkiwi correlation
+  python3 eval_comet.py -d1 ${model}.out.json -d2 wmt22-cometkiwi-da.json \
+    | tee ${model}.out.json.wmt2-cometkiwi-da.kendalltau
+
+done
