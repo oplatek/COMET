@@ -9,6 +9,7 @@ CKPT_CFG="da/configs/model_checkpoint.yaml"
 CKPT="$HOME/.cache/huggingface/hub/models--Unbabel--wmt22-cometkiwi-da/snapshots/b3a8aea5a5fc22db68a554b92b3d96eb6ea75cc9/checkpoints/model.ckpt"
 USE_FIRST_LAYERS="null"   # options are null, -1 for all except last layers 24 effectively the same if there are 25 layers
 EXPERIMENT_ID=""
+RUN_NAME=""
 
 debug=false
 
@@ -25,14 +26,20 @@ if [[ -z $SLURM_JOB_ID ]] ; then
   printf "Not a SLURM job" ; exit 1
 fi
 
+if [[ -z $RUN_NAME ]] ; then
+  RUN_NAME="$(xkcd-exp)."
+fi
+
 if [[ -z "$EXPERIMENT_ID" ]] ; then
-  EXPERIMENT_ID="Z_$TIMESTAMP.$SLURM_JOB_ID.$GIT_COMMIT"
+  EXPERIMENT_ID="Z_$TIMESTAMP.${RUN_NAME}$SLURM_JOB_ID.$GIT_COMMIT"
 else
   printf "\nWARNING: you are setting experiment id to $EXPERIMENT_ID\nMake sure that not multiple jobs are overwriting each other!\n\n"
 fi
 
 
-if [[ SKIP_TRAINING == false ]] ;
+if [[ SKIP_TRAINING == true ]] ; then
+  printf "WARNING training is not running expecting that you have setup $EXPERIMENT_ID so the exp/$EXPERIMENT_ID contains cfg.json and checkpoints\n\n"
+else
 mkdir -p "exp/$EXPERIMENT_ID/"
 
 sed \
@@ -56,15 +63,17 @@ unset SLURM_NTASK SLURM_JOB_NAME
 
 $CMD \
   ./comet/cli/train.py \
+  --run_name $RUN_NAME \
   --load_from_checkpoint "$CKPT" \
   --cfg "exp/$EXPERIMENT_ID/$(basename $MAIN_CFG)"
+fi  # end of skip training
 
 # TODO choose the best one
 
 # If you want just one model TODO select just the best one
 models="$(find exp/$EXPERIMENT_ID/ -name '*.ckpt' | head -n9)"
 
-for model in $models : do
+for model in $models ; do
 
   $CMD \
     ./score_comet.py \
