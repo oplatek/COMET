@@ -28,8 +28,12 @@ For more details run the following command:
     comet-train --help
 ```
 """
+import argparse
+import jsonargparse
 import json
 import logging
+import os
+from pathlib import Path
 import socket
 import warnings
 
@@ -185,15 +189,33 @@ def train_command() -> None:
 
     parser = read_arguments()
     cfg = parser.parse_args()
-    wandb.init(project="efficient_reranking", job_type='training', name=cfg.run_name)
-    wandb.config.update(vars(cfg))
-    seed_everything(cfg.seed_everything)
-    wandlogger = WandbLogger()
 
     # efficient-ranking specific. See run.sh we first save the config to output dir then launch exp
-    outdir = Path(cfg.cfg).parent
-    with open(outdir/ "wandb_config.json", "wt") as w:
-        json.dump(wandb.config, f)
+    run = wandb.init(project="efficient_reranking", job_type='training', name=cfg.run_name)
+    outdir = Path(cfg.model_checkpoint.init_args.dirpath)
+    print(f"Output directory: {outdir}")
+    cfg.wandb = {"id": run.id, "name": run.name, "entity": run.entity, "project": run.project, "url": run.get_url()}
+    OUTPUT_DIR_URL_PREFIX = os.environ.get("OUTPUT_DIR_URL_PREFIX", "")
+    cfg.output_dir_url = OUTPUT_DIR_URL_PREFIX + str(outdir.relative_to('.'))
+    wandb.config.update(vars(cfg))
+
+    def serializable_namespace(x):
+        if isinstance(x, argparse.Namespace) or isinstance(x, dict):
+            d = vars(x) if isinstance(x, argparse.Namespace) else x
+            return {key: serializable_namespace(value) for key, value in d.items()}
+        elif isinstance(x, list) or isinstance(x, tuple):
+            return [serializable_namespace(item) for item in x]
+        elif isinstance(x, Path) or isinstance(x, jsonargparse.util.Path):
+            return str(x)
+        else:
+            return x
+
+    with open(outdir / "cfg.json", "wt") as f:
+        scfg = serializable_namespace(cfg)
+        json.dump(scfg, f)
+
+    seed_everything(cfg.seed_everything)
+    wandlogger = WandbLogger()
 
     trainer = initialize_trainer(cfg)
     trainer.logger = wandlogger
@@ -207,6 +229,8 @@ def train_command() -> None:
         message=".*Consider increasing the value of the `num_workers` argument` .*",
     )
     trainer.fit(model)
+
+
 
 
 if __name__ == "__main__":

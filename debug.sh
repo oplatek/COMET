@@ -4,4 +4,4 @@ CKPT="$HOME/.cache/huggingface/hub/models--Unbabel--wmt22-cometkiwi-da/snapshots
 sed \
    -e 's/trainer: trainer.yaml/trainer: debugging_trainer.yaml/' \
     $MAIN_CFG > $MAIN_CFG.debug.yaml
-python ./comet/cli/train.py --load_from_checkpoint "$CKPT" --cfg $MAIN_CFG.debug.yaml
+WANDB_MODE=disabled python ./comet/cli/train.py --load_from_checkpoint "$CKPT" --cfg $MAIN_CFG.debug.yaml
