@@ -8,10 +8,11 @@ EARLY_STOP_CFG="da/configs/early_stopping.yaml"
 CKPT_CFG="da/configs/model_checkpoint.yaml"
 CKPT="$HOME/.cache/huggingface/hub/models--Unbabel--wmt22-cometkiwi-da/snapshots/b3a8aea5a5fc22db68a554b92b3d96eb6ea75cc9/checkpoints/model.ckpt"
 USE_FIRST_LAYERS="null"   # options are null, -1 for all except last layers 24 effectively the same if there are 25 layers
+SKIP_TRAINING="false"
 EXPERIMENT_ID=""
 RUN_NAME=""
 
-debug=false
+debug=false  # valid optoins are false and true
 
 . parse_options.sh
 
@@ -21,10 +22,6 @@ fi
 
 GIT_COMMIT="$(git rev-parse --short HEAD)"
 TIMESTAMP="$(date -u +'%Y%m%dT%H%M%S')"
-
-if [[ -z $SLURM_JOB_ID ]] ; then
-  printf "Not a SLURM job" ; exit 1
-fi
 
 if [[ -z $RUN_NAME ]] ; then
   RUN_NAME="$(xkcd-exp)."
@@ -37,8 +34,9 @@ else
 fi
 
 
-if [[ SKIP_TRAINING == true ]] ; then
+if [[ $SKIP_TRAINING == true ]] ; then
   printf "WARNING training is not running expecting that you have setup $EXPERIMENT_ID so the exp/$EXPERIMENT_ID contains cfg.json and checkpoints\n\n"
+  if [[ ! -d exp/$EXPERIMENT_ID/ ]] ; then printf "exp/$EXPERIMENT_ID/ does not exits! error 1" ; exit 1 ; fi
 else
 mkdir -p "exp/$EXPERIMENT_ID/"
 
@@ -61,22 +59,26 @@ export UNUSED_SLURM_NTAKS=$SLURM_NTASK
 export UNUSED_SLURM_JOB_NAME=$SLURM_JOB_NAME
 unset SLURM_NTASK SLURM_JOB_NAME
 
+if [[ -z $SLURM_JOB_ID ]] ; then printf "Not a SLURM job" ; exit 1; fi
+
 $CMD \
   ./comet/cli/train.py \
   --run_name $RUN_NAME \
   --load_from_checkpoint "$CKPT" \
   --cfg "exp/$EXPERIMENT_ID/$(basename $MAIN_CFG)"
-fi  # end of skip training
+fi  # end of skip training: if [[ $SKIP_TRAINING == true ]] ; then ... fi
 
 # TODO choose the best one
 
 # If you want just one model TODO select just the best one
-models="$(find exp/$EXPERIMENT_ID/ -name '*.ckpt' | head -n9)"
+models="$(find exp/$EXPERIMENT_ID/ -name '*.ckpt' | head -n1)"
 
 for model in $models ; do
 
+  if [[ -z $SLURM_JOB_ID ]] ; then printf "Not a SLURM job" ; exit 1; fi
   $CMD \
     ./score_comet.py \
+      -d ../efficient_pruning/vilem/data/jsonl/test.jsonl \
       -m $model \
       -o ${model}.out.json
 
@@ -88,4 +90,4 @@ for model in $models ; do
   python3 eval_comet.py -d1 ${model}.out.json -d2 wmt22-cometkiwi-da.json \
     | tee ${model}.out.json.wmt2-cometkiwi-da.kendalltau
 
-done
+done # for model in $models 

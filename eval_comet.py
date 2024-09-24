@@ -6,6 +6,7 @@ args = argparse.ArgumentParser()
 args.add_argument("-d1", "--data1")
 args.add_argument("-d2", "--data2")
 args = args.parse_args()
+print(json.dumps(vars(args)))
 
 if args.data2 in {"score", "human"}:
     args.data2 = args.data1
@@ -16,5 +17,4 @@ else:
 data1 = [json.loads(line)["model"] for line in open(args.data1)]
 data2 = [json.loads(line)[data2_key] for line in open(args.data2)]
  
-print(json.dumps(args))
 print(f"{scipy.stats.kendalltau(data1, data2, variant='c').correlation:.4f}")
